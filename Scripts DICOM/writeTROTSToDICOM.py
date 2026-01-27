@@ -11,6 +11,9 @@ from pydicom.tag import Tag
 import csv
 import seaborn as sns
 from scipy.interpolate import griddata
+import tempfile
+
+
 
 # -b /opt --TreatmentMachineName CGTR_2021 --rtdose False --tuneID Spot1 --rsID RS7.4cm --keyHole True --halfGantry True --minEnergy 100 --maxEnergy 226.09
 parser = argparse.ArgumentParser()
@@ -28,7 +31,7 @@ parser.add_argument("--halfGantry", nargs='?', help="Whether to add couch angle 
 parser.add_argument("--minEnergy", nargs='?', help="Low threshold for supported minimum beam energy", default=0)
 parser.add_argument("--maxEnergy", nargs='?', help="Low threshold for supported maximum beam energy", default=1000)
 parser.add_argument("-b","--folderBasePath", nargs='?', help="The base directory in which the code is run containing all neccessary folders", default=".")
-parser.add_argument("-o", "--outputPath", nargs='?', help="The output directory of the DICOM file", default="/tmp")
+parser.add_argument("-o", "--outputPath", nargs='?', help="The output directory of the DICOM file", default=tempfile.gettempdir())
 parser.add_argument("-n", "--DoseBeamNumber", type=list, nargs='?', help="A list of beam numbers to be calculated where a separate rtdose_<BeamNumber>.dcm is calculated, format: [BeamNumber_i, ..]. By default, all beams will be included.", default=None)
 parser.add_argument("-c", "--DoseControlPoints", type=list, nargs='?', help="A list of control point numbers where a separate rtdose_<BeamNumber>_<ControlPointNumber>.dcm is calculated, format: [(BeamNumber_i,ControlPoint_i), ...]", default=[])
 parser.add_argument("-s", "--DoseBeamSpots", type=list, nargs='?', help="A list of beam spot numbers where the rtdose_<BeamNumber>_<ControlPointNumber>_<BeamSpotNumber>.dcm is calculated, format: [(BeamNumber_i,ControlPoint_i,BeamSpotNumber_i), ...]", default=[])
@@ -62,6 +65,7 @@ for folder in caseFolders:
         patientFolder = matFile.split('.')[0]
         patientIndexInt = int(patientFolder.split('_')[1])
         outFolder = args.outputPath + "/DICOMs/" + folder + "/" + patientFolder + "/"
+        print(f'Writing output file on the directory: {outFolder}')
         os.makedirs(outFolder, exist_ok=True)
         resolutionX = mat['patient']['Resolution'][0];
         resolutionY = mat['patient']['Resolution'][1];
@@ -991,3 +995,4 @@ for folder in caseFolders:
                 bsdoseds.save_as(outFolder+'rtdose_beam'+str(beamSpotNumber[0])+'_CP'+str(beamSpotNumber[1])+'_SP'+str(beamSpotNumber[2])+'.dcm', write_like_original = False)
 
         print('DICOM files writen to ' + outFolder)
+
