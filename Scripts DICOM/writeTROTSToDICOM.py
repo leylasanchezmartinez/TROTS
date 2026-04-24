@@ -33,12 +33,12 @@ parser.add_argument("-n", "--DoseBeamNumber", type=list, nargs='?', help="A list
 parser.add_argument("-c", "--DoseControlPoints", type=list, nargs='?', help="A list of control point numbers where a separate rtdose_<BeamNumber>_<ControlPointNumber>.dcm is calculated, format: [(BeamNumber_i,ControlPoint_i), ...]", default=[])
 parser.add_argument("-s", "--DoseBeamSpots", type=list, nargs='?', help="A list of beam spot numbers where the rtdose_<BeamNumber>_<ControlPointNumber>_<BeamSpotNumber>.dcm is calculated, format: [(BeamNumber_i,ControlPoint_i,BeamSpotNumber_i), ...]", default=[])
 parser.add_argument("--DoseBoxLikeCT", nargs='?', help="Set to true to override the clipped dose box defined by TROTS and use instead the full CT as dose grid. Needed so that TROTSViewDVHs MATLAB script matches with DVHs computed from DICOM by e.g. SlicerRT.", default=False)
-parser.add_argument("--useRelativeGridOffset",nargs='?',help="Set to True to use relative Grid Frame Offset Vector (case a of Grid Frame Offset Vector Attribute in DICOM standard, see section C.8.8.3.2, strongly recommended)",default=True)
 parser.add_argument("--hideRangeShifter", nargs='?',help="Set to True to remove the physical Range Shifter and change the energy instead based on the water equivalent thickness",default=False)
 
 args = parser.parse_args()
 
 pydicom.config.settings.writing_validation_mode = pydicom.config.RAISE
+
 
 #Reading NIST file using the package nist-calculators
 from star import ProtonSTARCalculator, ProtonMaterials
@@ -57,7 +57,6 @@ from scipy.interpolate import interp1d
 energy_to_range = interp1d(nist_energy, nist_range, kind='cubic', fill_value="extrapolate")
 range_to_energy = interp1d(nist_range, nist_energy, kind='cubic', fill_value="extrapolate")
 hideRangeShifter = args.hideRangeShifter if type(args.hideRangeShifter) == bool else args.hideRangeShifter == "True"
-useRelativeGridOffset = args.useRelativeGridOffset if type(args.useRelativeGridOffset) == bool else args.useRelativeGridOffset == "True"
 
 caseFolders = ['Prostate_CK', 'Head-and-Neck', 'Protons', 'Liver', 'Prostate_BT', 'Prostate_VMAT', 'Head-and-Neck-Alt']
 for folder in caseFolders:
@@ -187,7 +186,7 @@ for folder in caseFolders:
 
             ds.PixelData = np.array(np.swapaxes(mat['patient']['CT'][:,:,sliceIndex],0,1)+1024).tobytes()
 
-            ds.save_as(outFolder+'CT_'+str(sliceIndex).zfill(3)+".dcm", write_like_original = False)
+            ds.save_as(outFolder+'CT_'+str(sliceIndex).zfill(3)+".dcm", enforce_file_format = False)
 
         # write RTStruct
         meta = pydicom.Dataset()
@@ -328,7 +327,7 @@ for folder in caseFolders:
                             rc.ContourSequence.append(cont)
             rds.ROIContourSequence.append(rc)
 
-        rds.save_as(outFolder+'rtstruct.dcm', write_like_original = False)
+        rds.save_as(outFolder+'rtstruct.dcm', enforce_file_format = False)
 
         if((folder == 'Protons') and ('beamlistfolder' in locals()) and ('machinedata' in locals())):
             # write rtplan
@@ -758,7 +757,7 @@ for folder in caseFolders:
                 rtds.IonBeamSequence.append(be)
                 totalMetersetWeightOfBeams += be.FinalCumulativeMetersetWeight
             assert(abs(totalMetersetWeightOfBeams - sum(mat["solutionX"])) < MetersetWeightTolerance)
-            rtds.save_as(outFolder+'rtplan.dcm', write_like_original = False)
+            rtds.save_as(outFolder+'rtplan.dcm', enforce_file_format = False)
 
             # write rtdose
             if not args.rtdose or (type(args.rtdose) == str and args.rtdose=='False'):
@@ -817,12 +816,7 @@ for folder in caseFolders:
             doseds.Rows = int(db[1][1] - db[1][0] + 1)
             doseds.Columns = int(db[0][1] - db[0][0] + 1)
             doseds.NumberOfFrames = db[2][1] - db[2][0] + 1
-            if useRelativeGridOffset:
-                #case a of DICOM C.8.8.3.2 (strongly recommended)
-                doseds.GridFrameOffsetVector = [format_number_as_ds(dz * resolution[2])for dz in range(doseds.NumberOfFrames)]
-            else:
-                #case b of DICOM C.8.8.3.2
-                doseds.GridFrameOffsetVector = [format_number_as_ds(doseds.ImagePositionPatient[2] + dz * resolution[2])for dz in range(doseds.NumberOfFrames)]
+            doseds.GridFrameOffsetVector = [format_number_as_ds(doseds.ImagePositionPatient[2] + dz*resolution[2]) for dz in range(doseds.NumberOfFrames)]
             doseds.PixelSpacing = ds.PixelSpacing
             doseds.BitsAllocated = ds.BitsAllocated
             doseds.BitsStored = ds.BitsStored
@@ -881,7 +875,7 @@ for folder in caseFolders:
             dose_uint16 = (dose / scaling).astype(np.uint16)
             doseds.PixelData = np.swapaxes(dose_uint16, 2, 0).flatten().tobytes()
 
-            doseds.save_as(outFolder + 'rtdose.dcm', write_like_original = False)
+            doseds.save_as(outFolder + 'rtdose.dcm', enforce_file_format = False)
 
             beamnrs = [beaminfo["BeamNumber"] for beaminfo in currentbeamlist]
             if args.DoseBeamNumber is None:
@@ -943,7 +937,7 @@ for folder in caseFolders:
                 dose_uint16 = (dose / scaling).astype(np.uint16)
                 bdoseds.PixelData = np.swapaxes(dose_uint16, 2, 0).flatten().tobytes()
                 
-                bdoseds.save_as(outFolder+'rtdose_beam'+str(beamNumber)+'.dcm', write_like_original = False)
+                bdoseds.save_as(outFolder+'rtdose_beam'+str(beamNumber)+'.dcm', enforce_file_format = False)
 
             for controlPointNumber in args.DoseControlPoints:
                 print('Working on rtdose, Beam:'+str(controlPointNumber[0])+' ControlPoint:'+str(controlPointNumber[1])+'...')
@@ -1009,7 +1003,7 @@ for folder in caseFolders:
                 dose_uint16 = (dose / scaling).astype(np.uint16)
                 cpdoseds.PixelData = np.swapaxes(dose_uint16, 2, 0).flatten().tobytes()
 
-                cpdoseds.save_as(outFolder+'rtdose_beam'+str(controlPointNumber[0])+'_CP'+str(controlPointNumber[1])+'.dcm', write_like_original = False)
+                cpdoseds.save_as(outFolder+'rtdose_beam'+str(controlPointNumber[0])+'_CP'+str(controlPointNumber[1])+'.dcm', enforce_file_format = False)
 
         for beamSpotNumber in args.DoseBeamSpots:
                 print('Working on rtdose, Beam:'+str(beamSpotNumber[0])+' ControlPoint:'+str(beamSpotNumber[1])+' BeamSpot:'+str(beamSpotNumber[2])+'...')
@@ -1076,6 +1070,6 @@ for folder in caseFolders:
                 dose_uint16 = (dose / scaling).astype(np.uint16)
                 bsdoseds.PixelData = np.swapaxes(dose_uint16, 2, 0).flatten().tobytes()
 
-                bsdoseds.save_as(outFolder+'rtdose_beam'+str(beamSpotNumber[0])+'_CP'+str(beamSpotNumber[1])+'_SP'+str(beamSpotNumber[2])+'.dcm', write_like_original = False)
+                bsdoseds.save_as(outFolder+'rtdose_beam'+str(beamSpotNumber[0])+'_CP'+str(beamSpotNumber[1])+'_SP'+str(beamSpotNumber[2])+'.dcm', enforce_file_format = False)
 
         print('DICOM files writen to ' + outFolder)
