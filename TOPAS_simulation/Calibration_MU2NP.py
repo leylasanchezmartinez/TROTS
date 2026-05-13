@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--TopasFolderPath", nargs='?', help="The input directory of the Patient TOPAS folder. It should include subfolders with the different Beams.", default=".")
 parser.add_argument("-r", "--RTDoseFolderPath", nargs='?', help="The input directory of the Patient, including rtdose, rtplan and the subfolder 'RTDose_BeamX_CPs'. ", default=".")
 parser.add_argument("-o", "--OutputPath", nargs='?', help="The output directory where the plot and txt will be saved. ", default="/tmp")
-parser.add_argument("-b", "--BeamNumber", type=int, nargs='+', help="A list of beam numbers to be calculated where a separate calibration.txt is calculated, format: [BeamNumber_i, ..]", default=[])
+parser.add_argument("-b", "--BeamNumber", type=int, nargs='+', help="A list of beam numbers where a separate calibration.txt is calculated, format: [BeamNumber_i, ..]", default=[])
 
 args = parser.parse_args()
 
